@@ -13,6 +13,7 @@ public interface StellarRpcService {
         return keyPair;
     }
 
+
     GetLatestLedgerResponse getLatestLedger();
 
     SendTransactionResponse createAccount();
