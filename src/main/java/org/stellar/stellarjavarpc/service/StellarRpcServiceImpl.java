@@ -5,20 +5,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.stellar.sdk.KeyPair;
-import org.stellar.sdk.LedgerBounds;
 import org.stellar.sdk.Network;
 import org.stellar.sdk.SorobanServer;
-import org.stellar.sdk.TimeBounds;
 import org.stellar.sdk.Transaction;
 import org.stellar.sdk.TransactionBuilder;
 import org.stellar.sdk.TransactionBuilderAccount;
-import org.stellar.sdk.TransactionPreconditions;
 import org.stellar.sdk.operations.CreateAccountOperation;
 import org.stellar.sdk.responses.sorobanrpc.GetLatestLedgerResponse;
+import org.stellar.sdk.responses.sorobanrpc.GetTransactionResponse;
 import org.stellar.sdk.responses.sorobanrpc.SendTransactionResponse;
 
 import java.math.BigDecimal;
-import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 import static org.stellar.stellarjavarpc.service.StellarRpcService.getKeyPair;
 
@@ -38,6 +36,11 @@ class StellarRpcServiceImpl implements StellarRpcService {
 		this.sorobanServer = sorobanServer;
 	}
 
+	@Override
+	public Supplier<SorobanServer> getSorobanServer() {
+		return () -> sorobanServer;
+	}
+
 	private static SendTransactionResponse accountCreationHandler(SendTransactionResponse sendTransactionResponse) {
 
 		log.info("Account Creation Response: {}", sendTransactionResponse);
@@ -48,17 +51,21 @@ class StellarRpcServiceImpl implements StellarRpcService {
 
 	@Override
 	public GetLatestLedgerResponse getLatestLedger() {
-		return sorobanServer.getLatestLedger();
+		return asyncRpcCall(rpcServer -> rpcServer.get().getLatestLedger())
+				.join();
+	}
+
+	@Override
+	public GetTransactionResponse getTransaction(String txId) {
+		return asyncRpcCall(rpcServer -> rpcServer.get().getTransaction(txId))
+				.join();
 	}
 
 	@Override
 	public SendTransactionResponse createAccount() {
 
 		final TransactionBuilderAccount sourceAccount = getSigner();
-		String friendbotUrl = sorobanServer.getNetwork().getFriendbotUrl();
-
 		final KeyPair destination = getKeyPair();
-
 		final KeyPair signer = KeyPair
 				.fromSecretSeed(keypairSecret);
 
@@ -69,29 +76,24 @@ class StellarRpcServiceImpl implements StellarRpcService {
 								.destination(destination.getAccountId())
 								.startingBalance(BigDecimal.valueOf(100))
 								.build())
-						.addPreconditions(getValidatedPreconditions(sourceAccount))
+						.addPreconditions(StellarRpcService.getValidatedPreconditions(sourceAccount))
 						.build();
 
 		transaction.sign(signer);
 
-		return CompletableFuture.supplyAsync(() -> sorobanServer.sendTransaction(transaction))
+		return asyncRpcCall(rpcServer -> rpcServer.get().sendTransaction(transaction))
 				.thenApplyAsync(StellarRpcServiceImpl::accountCreationHandler)
 				.join();
 	}
 
-	private static @lombok.NonNull TransactionPreconditions getValidatedPreconditions(TransactionBuilderAccount sourceAccount) {
-		TransactionPreconditions preconditions = TransactionPreconditions.builder()
-				.minSeqNumber(sourceAccount.getSequenceNumber())
-				.timeBounds(TimeBounds.expiresAfter(1000))
-				.ledgerBounds(new LedgerBounds(0, 0))
-				.build();
-
-		preconditions.validate();
-
-		return preconditions;
+	@Override
+	public String getFriendbotUrl() {
+		return asyncRpcCall(rpcServer -> rpcServer.get().getNetwork().getFriendbotUrl())
+				.join();
 	}
 
 	private TransactionBuilderAccount getSigner() {
-		return sorobanServer.getAccount(keypairPublicKey);
+		return asyncRpcCall(rpcServer -> rpcServer.get().getAccount(keypairPublicKey))
+				.join();
 	}
 }
