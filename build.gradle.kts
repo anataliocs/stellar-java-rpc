@@ -27,12 +27,9 @@ repositories {
 dependencies {
     implementation("network.lightsail:stellar-sdk:1.3.1")
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.projectlombok:lombok")
     developmentOnly("org.springframework.boot:spring-boot-devtools")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-}
-
-tasks.withType<Test> {
-    useJUnitPlatform()
 }
