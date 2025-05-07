@@ -1,25 +1,32 @@
 package org.stellar.stellarjavarpc.service;
 
+import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.stellar.sdk.KeyPair;
-import org.stellar.sdk.Network;
 import org.stellar.sdk.SorobanServer;
 import org.stellar.sdk.Transaction;
-import org.stellar.sdk.TransactionBuilder;
 import org.stellar.sdk.TransactionBuilderAccount;
-import org.stellar.sdk.operations.CreateAccountOperation;
 import org.stellar.sdk.responses.sorobanrpc.GetLatestLedgerResponse;
 import org.stellar.sdk.responses.sorobanrpc.GetTransactionResponse;
 import org.stellar.sdk.responses.sorobanrpc.SendTransactionResponse;
 
-import java.math.BigDecimal;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import static org.stellar.stellarjavarpc.service.StellarRpcService.getKeyPair;
+import static java.util.concurrent.CompletableFuture.delayedExecutor;
+import static org.stellar.stellarjavarpc.service.StellarRpcService.*;
 
+
+/**
+ * Implementation of the StellarRpcService interface that provides asynchronous operations
+ * for interacting with the Stellar network using the official Java SDK.
+ * This implementation leverages Spring Framework's async capabilities and CompletableFuture
+ * for non-blocking operations.
+ */
 @Service
 class StellarRpcServiceImpl implements StellarRpcService {
 	private static final Logger log = LoggerFactory.getLogger(StellarRpcServiceImpl.class);
@@ -32,7 +39,13 @@ class StellarRpcServiceImpl implements StellarRpcService {
 
 	private final SorobanServer sorobanServer;
 
-	public StellarRpcServiceImpl(SorobanServer sorobanServer) {
+	/**
+	 * Constructs a new StellarRpcServiceImpl with the specified Horizon server.
+	 *
+	 * @param sorobanServer The Stellar Horizon server instance to connect to
+	 * @throws IllegalArgumentException if server is null
+	 */
+	public StellarRpcServiceImpl(@NonNull SorobanServer sorobanServer) {
 		this.sorobanServer = sorobanServer;
 	}
 
@@ -56,33 +69,30 @@ class StellarRpcServiceImpl implements StellarRpcService {
 	}
 
 	@Override
-	public GetTransactionResponse getTransaction(String txId) {
-		return asyncRpcCall(rpcServer -> rpcServer.get().getTransaction(txId))
-				.join();
+	public CompletableFuture<GetTransactionResponse> getTransaction(SendTransactionResponse transactionResponse) {
+		return asyncRpcCall(rpcServer ->
+				rpcServer.get().getTransaction(transactionResponse.getHash()));
 	}
 
 	@Override
-	public SendTransactionResponse createAccount() {
+	public GetTransactionResponse createAccount() {
 
-		final TransactionBuilderAccount sourceAccount = getSigner();
+		final TransactionBuilderAccount sourceAccount = getSourceAccount();
 		final KeyPair destination = getKeyPair();
 		final KeyPair signer = KeyPair
 				.fromSecretSeed(keypairSecret);
 
-		Transaction transaction =
-				new TransactionBuilder(sourceAccount, Network.TESTNET)
-						.setBaseFee(Transaction.MIN_BASE_FEE)
-						.addOperation(CreateAccountOperation.builder()
-								.destination(destination.getAccountId())
-								.startingBalance(BigDecimal.valueOf(100))
-								.build())
-						.addPreconditions(StellarRpcService.getValidatedPreconditions(sourceAccount))
+		final Transaction transaction =
+				getTransactionBuilder(sourceAccount)
+						.addOperation(buildCreateAccountOperation(destination))
+						.addPreconditions(getValidatedPreconditions(sourceAccount))
 						.build();
 
 		transaction.sign(signer);
 
 		return asyncRpcCall(rpcServer -> rpcServer.get().sendTransaction(transaction))
 				.thenApplyAsync(StellarRpcServiceImpl::accountCreationHandler)
+				.thenComposeAsync(this::getTransaction, delayedExecutor(10, TimeUnit.SECONDS))
 				.join();
 	}
 
@@ -92,7 +102,15 @@ class StellarRpcServiceImpl implements StellarRpcService {
 				.join();
 	}
 
-	private TransactionBuilderAccount getSigner() {
+	/**
+	 * {@inheritDoc}
+	 * <p>
+	 * This implementation uses the Stellar SDK's Server.accounts() method to fetch
+	 * account details asynchronously. The operation is executed in a non-blocking manner
+	 * using CompletableFuture.
+	 */
+	@Override
+	public TransactionBuilderAccount getSourceAccount() {
 		return asyncRpcCall(rpcServer -> rpcServer.get().getAccount(keypairPublicKey))
 				.join();
 	}

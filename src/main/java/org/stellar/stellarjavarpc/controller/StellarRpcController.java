@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.stellar.sdk.responses.sorobanrpc.GetLatestLedgerResponse;
-import org.stellar.sdk.responses.sorobanrpc.SendTransactionResponse;
+import org.stellar.sdk.responses.sorobanrpc.GetTransactionResponse;
 import org.stellar.stellarjavarpc.service.StellarRpcService;
 
 @Slf4j
@@ -15,19 +15,19 @@ import org.stellar.stellarjavarpc.service.StellarRpcService;
 @RequestMapping("/stellar/v1")
 class StellarRpcController {
 
-    private final StellarRpcService stellarRpcService;
+	private final StellarRpcService stellarRpcService;
 
-    StellarRpcController(StellarRpcService stellarRpcService) {
-        this.stellarRpcService = stellarRpcService;
-    }
+	StellarRpcController(StellarRpcService stellarRpcService) {
+		this.stellarRpcService = stellarRpcService;
+	}
 
-    @GetMapping("/ledger")
-    public ResponseEntity<GetLatestLedgerResponse> getLatestLedger()  {
-        return ResponseEntity.ok(stellarRpcService.getLatestLedger());
-    }
+	@GetMapping("/ledger")
+	public ResponseEntity<GetLatestLedgerResponse> getLatestLedger() {
+		return ResponseEntity.ok(stellarRpcService.getLatestLedger());
+	}
 
-    @PostMapping("/account")
-    public ResponseEntity<SendTransactionResponse> post() {
-        return ResponseEntity.ok(stellarRpcService.createAccount());
-    }
+	@PostMapping("/account")
+	public ResponseEntity<GetTransactionResponse> post() {
+		return ResponseEntity.ok(stellarRpcService.createAccount());
+	}
 }

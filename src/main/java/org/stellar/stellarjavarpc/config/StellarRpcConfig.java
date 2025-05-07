@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.stellar.sdk.SorobanServer;
 
+@SuppressWarnings("ClassWithoutLogger")
 @Configuration
 public class StellarRpcConfig {
 
